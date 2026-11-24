@@ -1,51 +1,56 @@
 <?php
+$servidor = 'localhost';
+$baseDatos = 'reportes_escolares';
+$usuario = 'root';
+$contrasena = '';
+$puerto = 3306;
 
-
-// Guardar los reportes en un archivo JSON temporal.
-$archivo = sys_get_temp_dir() . "/reportes_banos_escolares.json";
-
-
-if (!file_exists($archivo)) {
-   file_put_contents($archivo, "[]");
+try {
+    $conexion = new PDO(
+        "mysql:host=$servidor;port=$puerto;dbname=$baseDatos;charset=utf8mb4",
+        $usuario,
+        $contrasena
+    );
+    $conexion->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $conexion->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    $conexion->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
+} catch (PDOException $e) {
+    http_response_code(500);
+    exit('No se pudo conectar a la base de datos. Revisa MySQL y la configuración de conexión.');
 }
 
-
-// Obtener todos los reportes.
 function obtenerReportes() {
-   global $archivo;
-
-
-   if (!file_exists($archivo)) {
-       return [];
-   }
-
-
-   $contenido = file_get_contents($archivo);
-   $datos = json_decode($contenido, true);
-
-
-   return is_array($datos) ? $datos : [];
+    global $conexion;
+    $consulta = $conexion->query('SELECT id, nombre, tipo_usuario, area, problema, descripcion, estado, fecha FROM reportes ORDER BY orden ASC');
+    return $consulta->fetchAll();
 }
 
-
-// Guardar los reportes.
-function guardarReportes($reportes) {
-   global $archivo;
-
-
-   $json = json_encode(
-       array_values($reportes),
-       JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
-   );
-
-
-   if ($json === false) {
-       return false;
-   }
-
-
-   return file_put_contents($archivo, $json, LOCK_EX) !== false;
+function registrarReporte($reporte) {
+    global $conexion;
+    try {
+        $consulta = $conexion->prepare('INSERT INTO reportes (id, nombre, tipo_usuario, area, problema, descripcion, estado, fecha) VALUES (:id, :nombre, :tipo_usuario, :area, :problema, :descripcion, :estado, :fecha)');
+        return $consulta->execute($reporte);
+    } catch (PDOException $e) {
+        return false;
+    }
 }
 
+function actualizarReporte($id, $estado) {
+    global $conexion;
+    try {
+        $consulta = $conexion->prepare('UPDATE reportes SET estado = ? WHERE id = ?');
+        return $consulta->execute([$estado, $id]);
+    } catch (PDOException $e) {
+        return false;
+    }
+}
 
-?>
+function eliminarReporte($id) {
+    global $conexion;
+    try {
+        $consulta = $conexion->prepare('DELETE FROM reportes WHERE id = ?');
+        return $consulta->execute([$id]);
+    } catch (PDOException $e) {
+        return false;
+    }
+}
